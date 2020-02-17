@@ -1,6 +1,9 @@
 # Import cache
 .import/
 
+# Stuff
+git_api.*
+
 # Binaries
 bin/
 build/
