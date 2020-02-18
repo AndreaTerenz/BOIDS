@@ -4,7 +4,7 @@ export(PackedScene) var boidScene = preload("res://scenes/Boid.tscn")
 
 func _ready() -> void:
 	var boid : Boid = boidScene.instance()
-	boid.setup($Start.position, $Target, Boid.BOID_MODE.SEEK)
+	boid.setup($Start.position)
 	self.add_child(boid)
 	
 func _input(event: InputEvent) -> void:
