@@ -18,6 +18,8 @@ var wanderAngle = -1
 var mode = null
 var target : Node = null
 
+onready var screen_size = get_viewport_rect().size
+
 func setup(pos : Vector2, t : Node = null, m = null):
 	self.position = pos
 	self.target = t
@@ -33,7 +35,7 @@ func _process(delta: float) -> void:
 		self.velocity += self.acceleration
 		self.position += self.velocity
 		self.acceleration *= 0
-		
+		wrapAroundScreen()
 		orientTowardsTarget()
 
 func orientTowardsTarget() -> void:
@@ -78,7 +80,27 @@ func getTargetPos() -> Vector2:
 	
 	return output
 
+func wrapAroundScreen() -> void:
+	var width = screen_size.x
+	var height = screen_size.y
+	
+	self.position.x = wrapValue(self.position.x, 0, width)
+	self.position.y = wrapValue(self.position.y, 0, height)
+	
+func wrapValue(val : float, minVal : float, maxVal : float) ->  float:
+	minVal = min(minVal, maxVal)
+	maxVal = max(minVal, maxVal)
+	
+	if (val > maxVal):
+		return minVal
+	elif (val < minVal):
+		return maxVal
+	else:
+		return val
+
 func smootherstep(minVal : float, maxVal : float, val : float) ->  float:
+	minVal = min(minVal, maxVal)
+	maxVal = max(minVal, maxVal)
 	val = clamp(val, minVal, maxVal)
 	val = range_lerp(val, minVal, maxVal, 0.0, 1.0)
 
