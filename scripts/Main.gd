@@ -8,7 +8,7 @@ func _ready() -> void:
 	self.add_child(boid)
 	boid.setup($Start.position, $Target)
 	
-func _input(event: InputEvent) -> void:
+func _input(_event: InputEvent) -> void:
 	
 	if Input.is_mouse_button_pressed(1):
 		$Target.position = get_global_mouse_position()

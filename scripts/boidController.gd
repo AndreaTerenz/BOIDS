@@ -26,7 +26,7 @@ func setup(pos : Vector2, t : Node = null, m = null):
 	self.mode = m if m != null else DEFAULT_MODE
 	self.wanderAngle = -1 if self.mode != BOID_MODE.WANDER else 0
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var tPos : Vector2 = getTargetPos()
 	var tDist : float = tPos.distance_to(self.position)
 	
