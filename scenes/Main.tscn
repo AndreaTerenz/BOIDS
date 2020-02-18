@@ -12,4 +12,4 @@ scale = Vector2( 0.48, 0.48 )
 texture = ExtResource( 1 )
 
 [node name="Start" type="Position2D" parent="."]
-position = Vector2( 881.136, 292.034 )
+position = Vector2( 163.096, 421.577 )

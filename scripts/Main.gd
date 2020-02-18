@@ -3,6 +3,7 @@ extends Node2D
 export(PackedScene) var boidScene = preload("res://scenes/Boid.tscn")
 
 func _ready() -> void:
+	randomize()
 	var boid : Boid = boidScene.instance()
 	boid.setup($Start.position, $Target)
 	self.add_child(boid)

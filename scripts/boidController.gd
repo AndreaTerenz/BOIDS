@@ -2,25 +2,27 @@ class_name Boid
 
 extends Node2D
 
-enum BOID_MODE { SEEK, FLEE }
+enum BOID_MODE { SEEK, FLEE, WANDER }
 
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
 export(float, 1, 200, 0.5) var BREAK_RADIUS = 20
 export(float, 0, 2, 0.01) var ARRIVED_RADIUS = 0.01
+export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
+export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.SEEK
 
 var velocity : Vector2 = Vector2(0,0)
 var acceleration : Vector2 = Vector2(0,0)
+var wanderAngle = -1
 var mode = null
-var targetMouse : bool = false
 var target : Node = null
 
 func setup(pos : Vector2, t : Node = null, m = null):
 	self.position = pos
-	self.targetMouse = (t==null)
 	self.target = t
 	self.mode = m if m != null else DEFAULT_MODE
+	self.wanderAngle = -1 if self.mode != BOID_MODE.WANDER else 0
 
 func _process(delta: float) -> void:
 	var tPos : Vector2 = getTargetPos()
@@ -37,22 +39,47 @@ func _process(delta: float) -> void:
 func orientTowardsTarget() -> void:
 	var tPos : Vector2 = getTargetPos()
 	look_at(tPos)
-	$Sprite.flip_v = (self.velocity.x < 0)
+	$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
+					  (self.velocity.x > 0 and self.mode == BOID_MODE.FLEE))
 
 func getDesire() -> Vector2:
 	var tPos : Vector2 = getTargetPos()
 	var tDist : float = tPos.distance_to(self.position)
-	var mult : float = MAX_SPEED
+	var mult : float = -1
 	
 	var desire = tPos - self.position
-	if (self.mode == BOID_MODE.FLEE):
-		mult = -1
-	elif (tDist <= BREAK_RADIUS):
-		mult = range_lerp(tDist, BREAK_RADIUS, 0, MAX_SPEED, 0)
+	
+	match (self.mode):
+		BOID_MODE.WANDER:
+			mult = MAX_SPEED
+		BOID_MODE.SEEK:
+			mult = smootherstep(0, BREAK_RADIUS, tDist) * MAX_SPEED
+		BOID_MODE.FLEE:
+			mult = -1
 
 	desire = desire.normalized() * mult
 	
 	return desire
 
 func getTargetPos() -> Vector2:
-	return get_global_mouse_position() if self.targetMouse else self.target.position
+	var output : Vector2 = Vector2(-1,-1)
+	
+	if self.mode == BOID_MODE.WANDER:
+		var wanderCircleCenter : Vector2 = Vector2(WANDER_DISTANCE, 0)
+		var wanderTarget : Vector2 = Vector2(0, 0)
+		self.wanderAngle += range_lerp(randf(), 0, 1, -PI/10, PI/10)
+		
+		wanderTarget.x = (WANDER_RADIUS * cos(wanderAngle))
+		wanderTarget.y = (WANDER_RADIUS * sin(wanderAngle))
+		
+		output = self.position + wanderCircleCenter + wanderTarget
+	else:
+		output = get_global_mouse_position() if self.target == null else self.target.position
+	
+	return output
+
+func smootherstep(minVal : float, maxVal : float, val : float) ->  float:
+	val = clamp(val, minVal, maxVal)
+	val = range_lerp(val, minVal, maxVal, 0.0, 1.0)
+
+	return -2*pow(val,3) + 3*pow(val,2)
