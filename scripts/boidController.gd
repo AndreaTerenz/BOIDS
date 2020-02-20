@@ -8,14 +8,17 @@ export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
 export(float, 1, 200, 0.5) var BREAK_RADIUS = 20
 export(float, 0, 2, 0.01) var ARRIVED_RADIUS = 0.01
-export(float, 10.0, 300.0, 0.5) var FOV_RADIUS = 120.0
+export(float, 10.0, 300.0, 0.5) var FOV_RADIUS = 160.0
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.SEEK
+export(bool) var KEEP_SEARCHING = true
 
+var wanderAngleNoise : OpenSimplexNoise
 var acceleration : Vector2 = Vector2(0,0)
 var velocity : Vector2 = Vector2(0,0)
 var targetInSight : bool = false
+var wanderNoisePos : float = 0.0
 var wanderAngle : float = 0
 var lastTargetPos : Vector2
 var target : Node
@@ -28,6 +31,11 @@ func setup(pos : Vector2, t : Node = null, m = null):
 	self.target = t
 	self.mode = m if m != null else DEFAULT_MODE
 	self.lastTargetPos = self.position
+	
+	self.wanderAngleNoise = OpenSimplexNoise.new()
+	self.wanderAngleNoise.seed = randi()
+	self.wanderAngleNoise.octaves = 3
+	self.wanderAngleNoise.period = 15.0
 
 func _process(_delta: float) -> void:
 	setTargetPos()
@@ -45,8 +53,11 @@ func _process(_delta: float) -> void:
 
 func _draw() -> void:
 	draw_line(Vector2(0,0), Vector2(WANDER_DISTANCE, 0), Color.gainsboro, 3)
-	draw_arc(Vector2(0,0), FOV_RADIUS, 0, 2*PI, 30, Color.white, 3)
-	draw_arc(Vector2(0,0), BREAK_RADIUS, 0, 2*PI, 30, Color.azure, 3)
+	
+	if (self.mode != BOID_MODE.WANDER):
+		draw_arc(Vector2(0,0), FOV_RADIUS, 0, 2*PI, 30, Color.white, 3)
+		if (self.mode == BOID_MODE.SEEK):
+			draw_arc(Vector2(0,0), BREAK_RADIUS, 0, 2*PI, 30, Color.azure, 3)
 	
 func orientTowardsTarget() -> void:
 	look_at(self.lastTargetPos)
@@ -78,16 +89,13 @@ func setTargetPos() -> void:
 	self.targetInSight = (actualPos.distance_to(self.position) <= FOV_RADIUS)
 	
 	if (canWander()):
-		var wanderTarget : Vector2 = Vector2(0, 0)
-		self.wanderAngle += range_lerp(randf(), 0, 1, -PI/6, PI/6)
-		
-		wanderTarget.x = (WANDER_RADIUS * cos(wanderAngle))
-		wanderTarget.y = (WANDER_RADIUS * sin(wanderAngle))
+		self.wanderAngle += self.wanderAngleNoise.get_noise_1d(self.wanderNoisePos)*PI/6
+		self.wanderNoisePos += 2
+		var wanderTarget = polar2cartesian(WANDER_RADIUS, self.wanderAngle)
 		
 		self.lastTargetPos = self.position + wanderTarget
-	else:
-		if self.targetInSight:
-			self.lastTargetPos = actualPos
+	elif self.targetInSight:
+		self.lastTargetPos = actualPos
 
 func wrapAroundScreen() -> void:
 	var width = screen_size.x
@@ -108,7 +116,7 @@ func wrapValue(val : float, minVal : float, maxVal : float) ->  float:
 		return val
 
 func canWander() -> bool:
-	return (self.mode == BOID_MODE.WANDER or not(self.targetInSight))
+	return (self.mode == BOID_MODE.WANDER or (not(self.targetInSight) and KEEP_SEARCHING))
 
 func smootherstep(minVal : float, maxVal : float, val : float) ->  float:
 	minVal = min(minVal, maxVal)
