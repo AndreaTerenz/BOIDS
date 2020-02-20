@@ -9,6 +9,5 @@ func _ready() -> void:
 	boid.setup($Start.position, $Target)
 	
 func _input(_event: InputEvent) -> void:
-	
 	if Input.is_mouse_button_pressed(1):
 		$Target.position = get_global_mouse_position()

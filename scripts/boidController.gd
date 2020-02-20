@@ -13,13 +13,13 @@ export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.SEEK
 
-var velocity : Vector2 = Vector2(0,0)
 var acceleration : Vector2 = Vector2(0,0)
-var lastTargetPos : Vector2 = Vector2(-1,-1)
-var hasSeenTarget : bool = false
-var wanderAngle
-var mode
+var velocity : Vector2 = Vector2(0,0)
+var targetInSight : bool = false
+var wanderAngle : float = 0
+var lastTargetPos : Vector2
 var target : Node
+var mode
 
 onready var screen_size = get_viewport_rect().size
 
@@ -27,22 +27,13 @@ func setup(pos : Vector2, t : Node = null, m = null):
 	self.position = pos
 	self.target = t
 	self.mode = m if m != null else DEFAULT_MODE
-	self.wanderAngle = -1 if self.mode != BOID_MODE.WANDER else 0
-	
-func _ready() -> void:
-	$WanderCenter.mesh.radius = FOV_RADIUS
-	$WanderCenter.mesh.height = FOV_RADIUS*2
-	pass
+	self.lastTargetPos = self.position
 
 func _process(_delta: float) -> void:
-	var tPos : Vector2 = getTargetPos()
-	if (tPos.distance_to(self.position) <= FOV_RADIUS):
-		self.lastTargetPos = tPos
-		self.hasSeenTarget = true
-		
+	setTargetPos()
 	var tDist : float = self.lastTargetPos.distance_to(self.position)
-		
-	if (tDist >= ARRIVED_RADIUS and self.hasSeenTarget):
+	
+	if (tDist >= ARRIVED_RADIUS):
 		self.acceleration = (getDesire() - self.velocity).clamped(MAX_FORCE)
 		self.velocity += self.acceleration
 		self.position += self.velocity
@@ -50,6 +41,13 @@ func _process(_delta: float) -> void:
 		wrapAroundScreen()
 		orientTowardsTarget()
 
+	update()
+
+func _draw() -> void:
+	draw_line(Vector2(0,0), Vector2(WANDER_DISTANCE, 0), Color.gainsboro, 3)
+	draw_arc(Vector2(0,0), FOV_RADIUS, 0, 2*PI, 30, Color.white, 3)
+	draw_arc(Vector2(0,0), BREAK_RADIUS, 0, 2*PI, 30, Color.azure, 3)
+	
 func orientTowardsTarget() -> void:
 	look_at(self.lastTargetPos)
 	$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
@@ -61,30 +59,35 @@ func getDesire() -> Vector2:
 	
 	var desire = self.lastTargetPos - self.position
 	
-	match (self.mode):
-		BOID_MODE.WANDER:
-			mult = MAX_SPEED
-		BOID_MODE.SEEK:
-			mult = smootherstep(0, BREAK_RADIUS, tDist) * MAX_SPEED
-		BOID_MODE.FLEE:
-			mult = -1
+	if (canWander()):
+		mult = MAX_SPEED
+	elif (self.mode == BOID_MODE.SEEK):
+		mult = smootherstep(0, BREAK_RADIUS, tDist) * MAX_SPEED
+	elif (self.mode == BOID_MODE.FLEE):
+		mult = -MAX_SPEED
 
 	desire = desire.normalized() * mult
 	
 	return desire
 
-func getTargetPos() -> Vector2:
-	if self.mode == BOID_MODE.WANDER:
-		var wanderCircleCenter : Vector2 = Vector2(WANDER_DISTANCE, 0)
+func setTargetPos() -> void:
+	var actualPos : Vector2 = get_global_mouse_position()
+	if (self.target != null):
+		actualPos = self.target.position
+		
+	self.targetInSight = (actualPos.distance_to(self.position) <= FOV_RADIUS)
+	
+	if (canWander()):
 		var wanderTarget : Vector2 = Vector2(0, 0)
-		self.wanderAngle += range_lerp(randf(), 0, 1, -PI/10, PI/10)
+		self.wanderAngle += range_lerp(randf(), 0, 1, -PI/6, PI/6)
 		
 		wanderTarget.x = (WANDER_RADIUS * cos(wanderAngle))
 		wanderTarget.y = (WANDER_RADIUS * sin(wanderAngle))
 		
-		return self.position + wanderCircleCenter + wanderTarget
+		self.lastTargetPos = self.position + wanderTarget
 	else:
-		return get_global_mouse_position() if self.target == null else self.target.position
+		if self.targetInSight:
+			self.lastTargetPos = actualPos
 
 func wrapAroundScreen() -> void:
 	var width = screen_size.x
@@ -103,6 +106,9 @@ func wrapValue(val : float, minVal : float, maxVal : float) ->  float:
 		return maxVal
 	else:
 		return val
+
+func canWander() -> bool:
+	return (self.mode == BOID_MODE.WANDER or not(self.targetInSight))
 
 func smootherstep(minVal : float, maxVal : float, val : float) ->  float:
 	minVal = min(minVal, maxVal)
