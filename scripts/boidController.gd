@@ -101,19 +101,8 @@ func wrapAroundScreen() -> void:
 	var width = screen_size.x
 	var height = screen_size.y
 	
-	self.position.x = wrapValue(self.position.x, 0, width)
-	self.position.y = wrapValue(self.position.y, 0, height)
-	
-func wrapValue(val : float, minVal : float, maxVal : float) ->  float:
-	minVal = min(minVal, maxVal)
-	maxVal = max(minVal, maxVal)
-	
-	if (val > maxVal):
-		return minVal
-	elif (val < minVal):
-		return maxVal
-	else:
-		return val
+	self.position.x = wrapf(self.position.x, 0, width)
+	self.position.y = wrapf(self.position.y, 0, height)
 
 func canWander() -> bool:
 	return (self.mode == BOID_MODE.WANDER or (not(self.targetInSight) and KEEP_SEARCHING))
