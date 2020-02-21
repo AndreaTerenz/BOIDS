@@ -7,8 +7,9 @@ enum BOID_MODE { SEEK, FLEE, WANDER }
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
 export(float, 1, 200, 0.5) var BREAK_RADIUS = 20
-export(float, 0, 2, 0.01) var ARRIVED_RADIUS = 0.01
+export(float, 0.15, 2, 0.01) var ARRIVED_RADIUS = 0.15
 export(float, 10.0, 300.0, 0.5) var FOV_RADIUS = 160.0
+export(float, 0.01, 2.0, 0.05) var FOV_ANGLE = 0.25
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.SEEK
@@ -31,35 +32,38 @@ func setup(pos : Vector2, t : Node = null, m = null):
 	self.target = t
 	self.mode = m if m != null else DEFAULT_MODE
 	self.lastTargetPos = self.position
-	
 	self.wanderAngleNoise = OpenSimplexNoise.new()
 	self.wanderAngleNoise.seed = randi()
 	self.wanderAngleNoise.octaves = 3
 	self.wanderAngleNoise.period = 15.0
 
 func _process(_delta: float) -> void:
-	setTargetPos()
-	var tDist : float = self.lastTargetPos.distance_to(self.position)
-	
-	if (tDist >= ARRIVED_RADIUS):
-		self.acceleration = (getDesire() - self.velocity).clamped(MAX_FORCE)
-		self.velocity += self.acceleration
-		self.position += self.velocity
-		self.acceleration *= 0
-		wrapAroundScreen()
-		orientTowardsTarget()
-
+	getTargetPos()
+	if (getTargetDistance() >= ARRIVED_RADIUS):
+		move()
+		orient()
 	update()
+	
+func move() -> void:
+	self.acceleration = (getDesire() - self.velocity).clamped(MAX_FORCE)
+	self.velocity += self.acceleration
+	self.position += self.velocity
+	self.acceleration *= 0
+	wrapAroundScreen()
 
 func _draw() -> void:
-	draw_line(Vector2(0,0), Vector2(WANDER_DISTANCE, 0), Color.gainsboro, 3)
+	var col : Color = Color.green if self.targetInSight else Color.white
+	
+	draw_line(Vector2(0,0), Vector2(WANDER_DISTANCE, 0), col, 3)
 	
 	if (self.mode != BOID_MODE.WANDER):
-		draw_arc(Vector2(0,0), FOV_RADIUS, 0, 2*PI, 30, Color.white, 3)
-		if (self.mode == BOID_MODE.SEEK):
-			draw_arc(Vector2(0,0), BREAK_RADIUS, 0, 2*PI, 30, Color.azure, 3)
+		var p = Vector2(FOV_RADIUS, 0)
+		var angle = (FOV_ANGLE*PI)/2
+		draw_line(Vector2.ZERO, p.rotated(angle), col, 3)
+		draw_line(Vector2.ZERO, p.rotated(-angle), col, 3)
+		draw_arc(Vector2.ZERO, FOV_RADIUS, -angle, angle, 30, col, 3)
 	
-func orientTowardsTarget() -> void:
+func orient() -> void:
 	look_at(self.lastTargetPos)
 	$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
 					  (self.velocity.x > 0 and self.mode == BOID_MODE.FLEE))
@@ -81,21 +85,35 @@ func getDesire() -> Vector2:
 	
 	return desire
 
-func setTargetPos() -> void:
-	var actualPos : Vector2 = get_global_mouse_position()
-	if (self.target != null):
-		actualPos = self.target.position
-		
-	self.targetInSight = (actualPos.distance_to(self.position) <= FOV_RADIUS)
+func getTargetPos() -> void:
+	var actualPos : Vector2 = getActualTargetPos()
+	self.targetInSight = isPositionInSight(actualPos)
 	
 	if (canWander()):
-		self.wanderAngle += self.wanderAngleNoise.get_noise_1d(self.wanderNoisePos)*PI/6
-		self.wanderNoisePos += 2
-		var wanderTarget = polar2cartesian(WANDER_RADIUS, self.wanderAngle)
-		
-		self.lastTargetPos = self.position + wanderTarget
+		self.lastTargetPos = self.position + getNextWanderTarget()
 	elif self.targetInSight:
 		self.lastTargetPos = actualPos
+
+func getNextWanderTarget() -> Vector2:
+	self.wanderAngle += self.wanderAngleNoise.get_noise_1d(self.wanderNoisePos)*PI/6
+	self.wanderNoisePos += 2
+	return Vector2(WANDER_RADIUS, 0).rotated(self.wanderAngle)
+
+func getActualTargetPos() -> Vector2:
+	return get_global_mouse_position() if (self.target == null) else self.target.position
+	
+func getTargetDistance() -> float:
+	return self.position.distance_to(self.lastTargetPos)
+
+func isPositionInSight(pos : Vector2) -> bool:
+	var distance = pos.distance_to(self.position)
+	var angle : float = to_local(pos).angle()
+	var actualFOVAngle = FOV_ANGLE*PI/2
+	
+	return (distance <= FOV_RADIUS) and isFloatInRange(angle, -actualFOVAngle, actualFOVAngle)
+
+func isFloatInRange(val : float, minVal : float, maxVal : float) -> bool:
+	return (val >= minVal) and (val <= maxVal)
 
 func wrapAroundScreen() -> void:
 	var width = screen_size.x
