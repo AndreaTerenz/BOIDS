@@ -7,4 +7,5 @@ git_api.*
 # Binaries
 bin/
 build/
+builds/
 lib/

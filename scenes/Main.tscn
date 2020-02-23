@@ -7,7 +7,6 @@
 script = ExtResource( 2 )
 
 [node name="Target" type="Sprite" parent="."]
-visible = false
 position = Vector2( 872.107, 103.645 )
 scale = Vector2( 0.48, 0.48 )
 texture = ExtResource( 1 )

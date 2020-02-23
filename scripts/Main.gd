@@ -8,7 +8,8 @@ func _ready() -> void:
 	randomize()
 
 	var boids = []
-	for i in range(0, 15):
+	#Shouldnt be more than 250
+	for i in range(0, 4):
 		var boid : Boid = boidScene.instance()
 		self.add_child(boid)
 		boid.setup(Vector2(rand_range(0, screen_size.x), rand_range(0, screen_size.y)), i, $Target)
@@ -20,3 +21,5 @@ func _ready() -> void:
 func _input(_event: InputEvent) -> void:
 	if Input.is_mouse_button_pressed(1):
 		$Target.position = get_global_mouse_position()
+		
+	

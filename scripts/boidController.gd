@@ -2,7 +2,7 @@ class_name Boid
 
 extends Node2D
 
-enum BOID_MODE { SEEK, FLEE, WANDER }
+enum BOID_MODE { SEEK, FLEE, WANDER, DRIFT }
 
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
@@ -10,10 +10,11 @@ export(float, 1, 200, 0.5) var BREAK_RADIUS = 20
 export(float, 0.15, 2, 0.01) var ARRIVED_RADIUS = 0.18
 export(float, 10.0, 300.0, 0.5) var FOV_RADIUS = 160.0
 export(float, 0.01, 2.0, 0.05) var FOV_ANGLE = 0.25
-export(float, 0.1, 30.0, 0.1) var SEPARATION = 30
+export(float, 0.1, 30.0, 0.1) var SEPARATION = 15
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.WANDER
+export(bool) var SHOW_DEBUG = true
 export(bool) var KEEP_SEARCHING = true
 
 var wanderAngleNoise : OpenSimplexNoise
@@ -24,26 +25,33 @@ var wanderNoisePos : float = 0.0
 var actualFOVAngle : float = 0
 var wanderAngle : float = 0
 var id : int = -1
+var others = []
+
 var lastTargetPos : Vector2
 var target : Node
-var others = null
 var mode
 
-onready var screen_size = get_viewport_rect().size
+onready var screen_size = get_viewport_rect().size + Vector2(10, 10)
 
-func setup(pos : Vector2, i : int, t : Node = null, m = null):
+func setup(pos : Vector2, i : int, t : Node = null, m = DEFAULT_MODE):
 	self.position = pos
-	self.target = t
 	self.id = i
-	self.mode = m if m != null else DEFAULT_MODE
+	self.target = t
+	self.mode = m
 	self.lastTargetPos = self.position
+	
+	if (self.mode == BOID_MODE.DRIFT):
+		self.velocity = Vector2(0, 0).rotated(randf()*2*PI)
 	self.actualFOVAngle = FOV_ANGLE*(PI/2)
+	initNoise()
+
+func initNoise() -> void:
 	self.wanderAngleNoise = OpenSimplexNoise.new()
 	self.wanderAngleNoise.seed = randi()
 	self.wanderAngleNoise.octaves = 3
 	self.wanderAngleNoise.period = 15.0
 
-func setOthers(o = []):
+func setOthers(o = []) -> void:
 	self.others = o
 
 func _process(_delta: float) -> void:
@@ -54,43 +62,48 @@ func _process(_delta: float) -> void:
 	update()
 	
 func _draw() -> void:
-	var col : Color
-	var arrived : bool = (self.velocity.length() <= 0.01)
-	
-	if (canWander()):
-		col = Color.white
-	elif not(arrived):
-		col = Color.yellow
-	else:
-		col = Color.green
-	
-	if not(arrived):
-		draw_line(Vector2.ZERO, Vector2(WANDER_DISTANCE, 0), col, 3)
+	if (SHOW_DEBUG):
+		draw_arc(Vector2.ZERO, SEPARATION, 0, 2*PI, 80, Color.white, 3)
 		
-	draw_arc(Vector2.ZERO, SEPARATION, 0, 2*PI, 80, Color.white, 3)
-	
-	if (self.mode != BOID_MODE.WANDER):
-		var p = Vector2(FOV_RADIUS, 0)
-		draw_line(Vector2.ZERO, p.rotated(self.actualFOVAngle), col, 3)
-		draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
-		draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
+		if (self.mode != BOID_MODE.DRIFT):
+			var col : Color
+			var arrived : bool = (self.velocity.length() <= 0.01)
+			
+			if (canWander()):
+				col = Color.white
+			elif not(arrived):
+				col = Color.yellow
+			else:
+				col = Color.green
+			
+			if not(arrived):
+				draw_line(Vector2.ZERO, Vector2(WANDER_DISTANCE, 0), col, 3)
+				
+			if (self.mode != BOID_MODE.WANDER):
+				var p = Vector2(FOV_RADIUS, 0)
+				draw_line(Vector2.ZERO, p.rotated(self.actualFOVAngle), col, 3)
+				draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
+				draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
+
+func _input(_event: InputEvent) -> void:
+	if Input.is_action_just_pressed("draw_debug"):
+		SHOW_DEBUG = not(SHOW_DEBUG)
 
 func move() -> void:
 	var targetAcc = getTargetAcceleration() 
 	var othersAcc = getOthersAcceleration()
 	
-	self.acceleration += targetAcc
-	self.acceleration += othersAcc
-	self.acceleration.clamped(MAX_FORCE)
+	self.acceleration = (targetAcc + othersAcc).clamped(MAX_FORCE)
 	self.velocity += self.acceleration
 	self.position += self.velocity
 	self.acceleration *= 0
 	wrapAroundScreen()
 
 func orient() -> void:
-	look_at(self.lastTargetPos)
-	$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
-					  (self.velocity.x > 0 and self.mode == BOID_MODE.FLEE))
+	if (self.mode != BOID_MODE.DRIFT):
+		look_at(self.lastTargetPos)
+		$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
+						  (self.velocity.x > 0 and self.mode == BOID_MODE.FLEE))
 
 func getOthersAcceleration() -> Vector2:
 	var separationSQ : float = pow(SEPARATION, 2)*4
@@ -112,21 +125,23 @@ func getOthersAcceleration() -> Vector2:
 	return output
 
 func getTargetAcceleration() -> Vector2:
-	var mult : float = -1
+	var desire = Vector2.ZERO
 	
-	var desire = self.lastTargetPos - self.position
+	if (self.mode != BOID_MODE.DRIFT):
+		var mult : float = -1
+		desire = self.lastTargetPos - self.position
+		
+		if (canWander()):
+			mult = MAX_SPEED
+		elif (self.mode == BOID_MODE.SEEK):
+			var tDist = self.lastTargetPos.distance_squared_to(self.position)
+			mult = smootherstep(0, BREAK_RADIUS, sqrt(tDist)) * MAX_SPEED
+		elif (self.mode == BOID_MODE.FLEE):
+			mult = -MAX_SPEED
 	
-	if (canWander()):
-		mult = MAX_SPEED
-	elif (self.mode == BOID_MODE.SEEK):
-		var tDist = self.lastTargetPos.distance_squared_to(self.position)
-		mult = smootherstep(0, BREAK_RADIUS, sqrt(tDist)) * MAX_SPEED
-	elif (self.mode == BOID_MODE.FLEE):
-		mult = -MAX_SPEED
-
-	desire = desire.normalized() * mult
+		desire = (desire.normalized() * mult) - self.velocity
 	
-	return desire - self.velocity
+	return desire
 
 func getTargetPos() -> void:
 	var actualPos : Vector2 = getActualTargetPos()
@@ -150,16 +165,18 @@ func getTargetDistance() -> float:
 
 func isPositionInSight(pos : Vector2) -> bool:
 	var distance = pos.distance_squared_to(self.position)
+	var distOK : bool = (distance <= pow(FOV_RADIUS,2))
 	var angle : float = to_local(pos).angle()
+	var angleOK : bool = (angle >= -self.actualFOVAngle) and (angle <= self.actualFOVAngle)
 	
-	return (distance <= pow(FOV_RADIUS,2)) and (angle >= -self.actualFOVAngle) and (angle <= self.actualFOVAngle)
+	return distOK and angleOK
 
 func wrapAroundScreen() -> void:
 	var width = screen_size.x
 	var height = screen_size.y
 	
-	self.position.x = wrapf(self.position.x, 0, width)
-	self.position.y = wrapf(self.position.y, 0, height)
+	self.position.x = wrapf(self.position.x, -10, width)
+	self.position.y = wrapf(self.position.y, -10, height)
 
 func canWander() -> bool:
 	return (self.mode == BOID_MODE.WANDER or (not(self.targetInSight) and KEEP_SEARCHING))
