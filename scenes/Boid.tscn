@@ -5,7 +5,8 @@
 
 [node name="Boid" type="Node2D"]
 script = ExtResource( 2 )
-DEFAULT_MODE = 0
+SEPARATION = 22.0
+DEFAULT_MODE = 3
 
 [node name="Sprite" type="Sprite" parent="."]
 scale = Vector2( 0.297309, 0.297309 )

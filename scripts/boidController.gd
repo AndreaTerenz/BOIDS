@@ -41,7 +41,7 @@ func setup(pos : Vector2, i : int, t : Node = null, m = DEFAULT_MODE):
 	self.lastTargetPos = self.position
 	
 	if (self.mode == BOID_MODE.DRIFT):
-		self.velocity = Vector2(0, 0).rotated(randf()*2*PI)
+		self.velocity = Vector2(MAX_SPEED, 0).rotated(randf()*2*PI)
 	self.actualFOVAngle = FOV_ANGLE*(PI/2)
 	initNoise()
 
@@ -56,7 +56,7 @@ func setOthers(o = []) -> void:
 
 func _process(_delta: float) -> void:
 	getTargetPos()
-	if (getTargetDistance() >= pow(ARRIVED_RADIUS,2)):
+	if not(hasArrived()):
 		move()
 		orient()
 	update()
@@ -67,16 +67,15 @@ func _draw() -> void:
 		
 		if (self.mode != BOID_MODE.DRIFT):
 			var col : Color
-			var arrived : bool = (self.velocity.length() <= 0.01)
 			
 			if (canWander()):
 				col = Color.white
-			elif not(arrived):
+			elif not(hasArrived()):
 				col = Color.yellow
 			else:
 				col = Color.green
 			
-			if not(arrived):
+			if not(hasArrived()):
 				draw_line(Vector2.ZERO, Vector2(WANDER_DISTANCE, 0), col, 3)
 				
 			if (self.mode != BOID_MODE.WANDER):
@@ -109,7 +108,7 @@ func getOthersAcceleration() -> Vector2:
 	var separationSQ : float = pow(SEPARATION, 2)*4
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
-	
+
 	for o in self.others:
 		var dist = o.position.distance_squared_to(self.position)
 		if (o.id != self.id) and (dist <= separationSQ):
@@ -177,6 +176,9 @@ func wrapAroundScreen() -> void:
 	
 	self.position.x = wrapf(self.position.x, -10, width)
 	self.position.y = wrapf(self.position.y, -10, height)
+
+func hasArrived() -> bool:
+	return getTargetDistance() < pow(ARRIVED_RADIUS,2)
 
 func canWander() -> bool:
 	return (self.mode == BOID_MODE.WANDER or (not(self.targetInSight) and KEEP_SEARCHING))
