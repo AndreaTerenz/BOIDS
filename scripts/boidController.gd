@@ -6,13 +6,20 @@ enum BOID_MODE { SEEK, FLEE, WANDER, DRIFT }
 
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
+
 export(float, 1, 200, 0.5) var BREAK_RADIUS = 20
 export(float, 0.15, 2, 0.01) var ARRIVED_RADIUS = 0.18
+
 export(float, 10.0, 300.0, 0.5) var FOV_RADIUS = 160.0
 export(float, 0.01, 2.0, 0.05) var FOV_ANGLE = 0.25
-export(float, 0.1, 30.0, 0.1) var SEPARATION = 15
+
+export(float, 0.1, 30.0, 0.1) var SEPARATION_RADIUS = 15
+export(float, 0.8, 90.0, 0.1) var ALIGNMENT_RADIUS = 40
+export(float, 0.8, 90.0, 0.1) var COHESION_RADIUS = 60
+
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
+
 export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.WANDER
 export(bool) var SHOW_DEBUG = true
 export(bool) var KEEP_SEARCHING = true
@@ -63,7 +70,9 @@ func _process(_delta: float) -> void:
 	
 func _draw() -> void:
 	if (SHOW_DEBUG):
-		draw_arc(Vector2.ZERO, SEPARATION, 0, 2*PI, 80, Color.white, 3)
+		if (others.size() > 1):
+			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.white, 3)
+			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.white, 3)
 		
 		if (self.mode != BOID_MODE.DRIFT):
 			var col : Color
@@ -84,18 +93,17 @@ func _draw() -> void:
 				draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
 				draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
 
+func draw_empty_circle(center : Vector2, radius : float, color : Color, thickness : float = 1.0) -> void:
+	draw_arc(center, radius, 0, 2*PI, 80, color, thickness)
+
 func _input(_event: InputEvent) -> void:
 	if Input.is_action_just_pressed("draw_debug"):
 		SHOW_DEBUG = not(SHOW_DEBUG)
 
 func move() -> void:
-	var targetAcc = getTargetAcceleration() 
-	var othersAcc = getOthersAcceleration()
-	
-	self.acceleration = (targetAcc + othersAcc).clamped(MAX_FORCE)
+	self.acceleration = getTotalAcceleration()
 	self.velocity += self.acceleration
 	self.position += self.velocity
-	self.acceleration *= 0
 	wrapAroundScreen()
 
 func orient() -> void:
@@ -104,14 +112,58 @@ func orient() -> void:
 		$Sprite.flip_v = ((self.velocity.x < 0 and self.mode == BOID_MODE.SEEK) or \
 						  (self.velocity.x > 0 and self.mode == BOID_MODE.FLEE))
 
-func getOthersAcceleration() -> Vector2:
-	var separationSQ : float = pow(SEPARATION, 2)*4
+func getTotalAcceleration() -> Vector2:
+	var output = getDesire()
+	if not(self.mode in [BOID_MODE.SEEK, BOID_MODE.FLEE]):
+		output += getSeparation()
+		output += getAlignment()
+		output += getCohesion()
+		
+	return output.clamped(MAX_FORCE)
+
+func getCohesion() -> Vector2:
+	var cohRadSQ : float = pow(COHESION_RADIUS*2, 2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
 	for o in self.others:
 		var dist = o.position.distance_squared_to(self.position)
-		if (o.id != self.id) and (dist <= separationSQ):
+		if (o.id != self.id) and (dist <= cohRadSQ):
+			output += o.position
+			count += 1
+	
+	if (count > 0):
+		output /= count
+		output  = getDesireToPosition(output)
+	
+	return output
+
+func getAlignment() -> Vector2:
+	var alRadSQ : float = pow(ALIGNMENT_RADIUS*2, 2)
+	var output : Vector2 = Vector2.ZERO
+	var count : int = 0
+
+	for o in self.others:
+		var dist = o.position.distance_squared_to(self.position)
+		if (o.id != self.id) and (dist <= alRadSQ):
+			output += o.velocity
+			count += 1
+	
+	if (count > 0):
+		output /= count
+		output  = (output.normalized() * MAX_SPEED)
+		output -= self.velocity
+	
+	return output
+
+func getSeparation() -> Vector2:
+	var sepRadSQ : float = pow(SEPARATION_RADIUS*2, 2)
+	var output : Vector2 = Vector2.ZERO
+	var count : int = 0
+
+	for o in self.others:
+		var dist = o.position.distance_squared_to(self.position)
+		if (o.id != self.id) and (dist <= sepRadSQ):
 			var diff : Vector2 = (self.position - o.position).normalized()
 			output += diff
 			count += 1
@@ -123,23 +175,26 @@ func getOthersAcceleration() -> Vector2:
 	
 	return output
 
-func getTargetAcceleration() -> Vector2:
+func getDesire() -> Vector2:
+	return getDesireToPosition(self.lastTargetPos)
+
+func getDesireToPosition(pos : Vector2) -> Vector2:
 	var desire = Vector2.ZERO
 	
 	if (self.mode != BOID_MODE.DRIFT):
 		var mult : float = -1
-		desire = self.lastTargetPos - self.position
+		desire = pos - self.position
 		
 		if (canWander()):
 			mult = MAX_SPEED
 		elif (self.mode == BOID_MODE.SEEK):
-			var tDist = self.lastTargetPos.distance_squared_to(self.position)
+			var tDist = pos.distance_squared_to(self.position)
 			mult = smootherstep(0, BREAK_RADIUS, sqrt(tDist)) * MAX_SPEED
 		elif (self.mode == BOID_MODE.FLEE):
 			mult = -MAX_SPEED
 	
 		desire = (desire.normalized() * mult) - self.velocity
-	
+		
 	return desire
 
 func getTargetPos() -> void:
