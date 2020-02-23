@@ -13,15 +13,9 @@ _global_script_classes=[ {
 "class": "Boid",
 "language": "GDScript",
 "path": "res://scripts/boidController.gd"
-}, {
-"base": "",
-"class": "GitAPI",
-"language": "NativeScript",
-"path": "res://git_api.gdns"
 } ]
 _global_script_class_icons={
-"Boid": "",
-"GitAPI": ""
+"Boid": ""
 }
 
 [application]
@@ -30,14 +24,19 @@ config/name="BOIDS"
 run/main_scene="res://scenes/Main.tscn"
 config/icon="res://icon.png"
 
+[debug]
+
+settings/stdout/print_fps=true
+
 [display]
 
+window/dpi/allow_hidpi=true
 window/stretch/mode="2d"
 window/stretch/aspect="keep"
 
 [gdnative]
 
-singletons=[ "res://git_api.gdnlib" ]
+singletons=[  ]
 
 [rendering]
 
