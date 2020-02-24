@@ -8,7 +8,7 @@ func _ready() -> void:
 	randomize()
 
 	var boids = []
-	#Shouldnt be more than 250
+	#Shouldn't be more than 250
 	for i in range(0, 40):
 		var boid : Boid = boidScene.instance()
 		self.add_child(boid)

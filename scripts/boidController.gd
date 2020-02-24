@@ -202,11 +202,11 @@ func getTargetPos() -> void:
 	self.targetInSight = isPositionInSight(actualPos)
 	
 	if (canWander()):
-		self.lastTargetPos = self.position + getNextWanderTarget()
+		self.lastTargetPos = self.position + getWanderTargetPos()
 	elif self.targetInSight:
 		self.lastTargetPos = actualPos
 
-func getNextWanderTarget() -> Vector2:
+func getWanderTargetPos() -> Vector2:
 	self.wanderAngle += self.wanderAngleNoise.get_noise_1d(self.wanderNoisePos)*PI/6
 	self.wanderNoisePos += 2
 	return Vector2(WANDER_RADIUS, 0).rotated(self.wanderAngle)
