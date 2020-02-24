@@ -1,16 +1,7 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=2 format=2]
 
 [ext_resource path="res://icon.png" type="Texture" id=1]
-[ext_resource path="res://scripts/boidController.gd" type="Script" id=2]
 
-[node name="Boid" type="Node2D"]
-script = ExtResource( 2 )
-MAX_SPEED = 3.8
-MAX_FORCE = 0.85
-ALIGNMENT_RADIUS = 20.0
-COHESION_RADIUS = 40.0
-DEFAULT_MODE = 0
-
-[node name="Sprite" type="Sprite" parent="."]
+[node name="Sprite" type="Sprite"]
 scale = Vector2( 0.297309, 0.297309 )
 texture = ExtResource( 1 )

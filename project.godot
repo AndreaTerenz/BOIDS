@@ -12,10 +12,16 @@ _global_script_classes=[ {
 "base": "Node2D",
 "class": "Boid",
 "language": "GDScript",
-"path": "res://scripts/boidController.gd"
+"path": "res://scripts/BoidController.gd"
+}, {
+"base": "Node2D",
+"class": "Flock",
+"language": "GDScript",
+"path": "res://scripts/FlockController.gd"
 } ]
 _global_script_class_icons={
-"Boid": ""
+"Boid": "",
+"Flock": ""
 }
 
 [application]

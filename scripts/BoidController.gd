@@ -4,6 +4,8 @@ extends Node2D
 
 enum BOID_MODE { SEEK, FLEE, WANDER, DRIFT }
 
+const BOID_SCENE : PackedScene = preload("res://scenes/Boid.tscn")
+
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
 
@@ -20,7 +22,6 @@ export(float, 0.8, 90.0, 0.1) var COHESION_RADIUS = 60
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 
-export(BOID_MODE) var DEFAULT_MODE = BOID_MODE.WANDER
 export(bool) var SHOW_DEBUG = true
 export(bool) var KEEP_SEARCHING = true
 
@@ -32,7 +33,7 @@ var wanderNoisePos : float = 0.0
 var actualFOVAngle : float = 0
 var wanderAngle : float = 0
 var id : int = -1
-var others = []
+var parent : Node = null
 
 var lastTargetPos : Vector2
 var target : Node
@@ -40,9 +41,10 @@ var mode
 
 onready var screen_size = get_viewport_rect().size + Vector2(10, 10)
 
-func setup(pos : Vector2, i : int, t : Node = null, m = DEFAULT_MODE):
+func _init(pos : Vector2, i : int, t : Node, prnt : Node, m) -> void:
 	self.position = pos
 	self.id = i
+	self.parent = prnt
 	self.target = t
 	self.mode = m
 	self.lastTargetPos = self.position
@@ -50,6 +52,10 @@ func setup(pos : Vector2, i : int, t : Node = null, m = DEFAULT_MODE):
 	if (self.mode == BOID_MODE.DRIFT):
 		self.velocity = Vector2(MAX_SPEED, 0).rotated(randf()*2*PI)
 	self.actualFOVAngle = FOV_ANGLE*(PI/2)
+	
+	var scene : Node = BOID_SCENE.instance()
+	self.add_child(scene)
+	
 	initNoise()
 
 func initNoise() -> void:
@@ -57,9 +63,6 @@ func initNoise() -> void:
 	self.wanderAngleNoise.seed = randi()
 	self.wanderAngleNoise.octaves = 3
 	self.wanderAngleNoise.period = 15.0
-
-func setOthers(o = []) -> void:
-	self.others = o
 
 func _process(_delta: float) -> void:
 	getTargetPos()
@@ -69,8 +72,10 @@ func _process(_delta: float) -> void:
 	update()
 	
 func _draw() -> void:
+	var othersCount = self.parent.get_children().size()
+
 	if (SHOW_DEBUG):
-		if (others.size() > 1):
+		if (othersCount > 1):
 			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.white, 3)
 			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.white, 3)
 		
@@ -92,6 +97,9 @@ func _draw() -> void:
 				draw_line(Vector2.ZERO, p.rotated(self.actualFOVAngle), col, 3)
 				draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
 				draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
+
+	var rectSide = 7
+	draw_rect(Rect2(-rectSide, -rectSide, rectSide*2, rectSide*2), Color.aquamarine)
 
 func draw_empty_circle(center : Vector2, radius : float, color : Color, thickness : float = 1.0) -> void:
 	draw_arc(center, radius, 0, 2*PI, 80, color, thickness)
@@ -122,11 +130,12 @@ func getTotalAcceleration() -> Vector2:
 	return output.clamped(MAX_FORCE)
 
 func getCohesion() -> Vector2:
+	var others = self.parent.get_children()
 	var cohRadSQ : float = pow(COHESION_RADIUS*2, 2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
-	for o in self.others:
+	for o in others:
 		var dist = o.position.distance_squared_to(self.position)
 		if (o.id != self.id) and (dist <= cohRadSQ):
 			output += o.position
@@ -139,11 +148,12 @@ func getCohesion() -> Vector2:
 	return output
 
 func getAlignment() -> Vector2:
+	var others = self.parent.get_children()
 	var alRadSQ : float = pow(ALIGNMENT_RADIUS*2, 2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
-	for o in self.others:
+	for o in others:
 		var dist = o.position.distance_squared_to(self.position)
 		if (o.id != self.id) and (dist <= alRadSQ):
 			output += o.velocity
@@ -157,11 +167,12 @@ func getAlignment() -> Vector2:
 	return output
 
 func getSeparation() -> Vector2:
+	var others = self.parent.get_children()
 	var sepRadSQ : float = pow(SEPARATION_RADIUS*2, 2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
-	for o in self.others:
+	for o in others:
 		var dist = o.position.distance_squared_to(self.position)
 		if (o.id != self.id) and (dist <= sepRadSQ):
 			var diff : Vector2 = (self.position - o.position).normalized()
