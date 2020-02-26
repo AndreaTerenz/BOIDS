@@ -4,8 +4,6 @@ extends Node2D
 
 enum BOID_MODE { SEEK, FLEE, WANDER, DRIFT }
 
-const BOID_SCENE : PackedScene = preload("res://scenes/Boid.tscn")
-
 export(float, 0.1, 12, 0.1) var MAX_SPEED = 5
 export(float, 0.05, 2, 0.05) var MAX_FORCE = 1
 
@@ -33,7 +31,7 @@ var wanderNoisePos : float = 0.0
 var actualFOVAngle : float = 0
 var wanderAngle : float = 0
 var id : int = -1
-var parent : Node = null
+var parent = null
 
 var lastTargetPos : Vector2
 var target : Node
@@ -41,22 +39,22 @@ var mode
 
 onready var screen_size = get_viewport_rect().size + Vector2(10, 10)
 
-func _init(pos : Vector2, i : int, t : Node, prnt : Node, m) -> void:
+func _init(pos : Vector2, i : int, t : Node, prnt, m, scn : PackedScene) -> void:
 	self.position = pos
 	self.id = i
 	self.parent = prnt
 	self.target = t
 	self.mode = m
-	self.lastTargetPos = self.position
+	initNoise()
 	
 	if (self.mode == BOID_MODE.DRIFT):
 		self.velocity = Vector2(MAX_SPEED, 0).rotated(randf()*2*PI)
 	self.actualFOVAngle = FOV_ANGLE*(PI/2)
 	
-	var scene : Node = BOID_SCENE.instance()
+	var scene : Node = scn.instance()
 	self.add_child(scene)
 	
-	initNoise()
+	getTargetPos()
 
 func initNoise() -> void:
 	self.wanderAngleNoise = OpenSimplexNoise.new()
@@ -64,16 +62,9 @@ func initNoise() -> void:
 	self.wanderAngleNoise.octaves = 3
 	self.wanderAngleNoise.period = 15.0
 
-func _process(_delta: float) -> void:
-	getTargetPos()
-	if not(hasArrived()):
-		move()
-		orient()
-	update()
-	
 func _draw() -> void:
-	var othersCount = self.parent.get_children().size()
-
+	var othersCount = self.parent.getBoidsCount()
+	
 	if (SHOW_DEBUG):
 		if (othersCount > 1):
 			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.white, 3)
@@ -109,10 +100,16 @@ func _input(_event: InputEvent) -> void:
 		SHOW_DEBUG = not(SHOW_DEBUG)
 
 func move() -> void:
-	self.acceleration = getTotalAcceleration()
-	self.velocity += self.acceleration
-	self.position += self.velocity
-	wrapAroundScreen()
+	if not(hasArrived()):
+		self.position += self.velocity
+		wrapAroundScreen()
+		orient()
+
+func setVelocity() -> void:
+	if not(hasArrived()):
+		getTargetPos()
+		self.acceleration = getTotalAcceleration()
+		self.velocity += self.acceleration
 
 func orient() -> void:
 	if (self.mode != BOID_MODE.DRIFT):
@@ -130,16 +127,13 @@ func getTotalAcceleration() -> Vector2:
 	return output.clamped(MAX_FORCE)
 
 func getCohesion() -> Vector2:
-	var others = self.parent.get_children()
-	var cohRadSQ : float = pow(COHESION_RADIUS*2, 2)
+	var others = self.parent.getOtherBoidsInRange(self.id, COHESION_RADIUS)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
 	for o in others:
-		var dist = o.position.distance_squared_to(self.position)
-		if (o.id != self.id) and (dist <= cohRadSQ):
-			output += o.position
-			count += 1
+		output += o.position
+		count += 1
 	
 	if (count > 0):
 		output /= count
@@ -148,16 +142,13 @@ func getCohesion() -> Vector2:
 	return output
 
 func getAlignment() -> Vector2:
-	var others = self.parent.get_children()
-	var alRadSQ : float = pow(ALIGNMENT_RADIUS*2, 2)
+	var others = self.parent.getOtherBoidsInRange(self.id, ALIGNMENT_RADIUS)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
 	for o in others:
-		var dist = o.position.distance_squared_to(self.position)
-		if (o.id != self.id) and (dist <= alRadSQ):
-			output += o.velocity
-			count += 1
+		output += o.velocity
+		count += 1
 	
 	if (count > 0):
 		output /= count
@@ -167,17 +158,14 @@ func getAlignment() -> Vector2:
 	return output
 
 func getSeparation() -> Vector2:
-	var others = self.parent.get_children()
-	var sepRadSQ : float = pow(SEPARATION_RADIUS*2, 2)
+	var others = self.parent.getOtherBoidsInRange(self.id, SEPARATION_RADIUS)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
 	for o in others:
-		var dist = o.position.distance_squared_to(self.position)
-		if (o.id != self.id) and (dist <= sepRadSQ):
-			var diff : Vector2 = (self.position - o.position).normalized()
-			output += diff
-			count += 1
+		var diff : Vector2 = (self.position - o.position).normalized()
+		output += diff
+		count += 1
 	
 	if (count > 0):
 		output /= count
@@ -225,6 +213,9 @@ func getWanderTargetPos() -> Vector2:
 func getActualTargetPos() -> Vector2:
 	return get_global_mouse_position() if (self.target == null) else self.target.position
 
+func getActualTargetDistance() -> float:
+	return getActualTargetPos().distance_squared_to(self.position)
+
 func getTargetDistance() -> float:
 	return self.position.distance_squared_to(self.lastTargetPos)
 
@@ -244,7 +235,7 @@ func wrapAroundScreen() -> void:
 	self.position.y = wrapf(self.position.y, -10, height)
 
 func hasArrived() -> bool:
-	return getTargetDistance() < pow(ARRIVED_RADIUS,2)
+	return getActualTargetDistance() < pow(ARRIVED_RADIUS,2)
 
 func canWander() -> bool:
 	return (self.mode == BOID_MODE.WANDER or (not(self.targetInSight) and KEEP_SEARCHING))

@@ -17,5 +17,4 @@ position = Vector2( 163.096, 421.577 )
 
 [node name="Flock" type="Node2D" parent="."]
 script = ExtResource( 3 )
-target = NodePath("../Target")
-boidsCount = 10
+count = 40
