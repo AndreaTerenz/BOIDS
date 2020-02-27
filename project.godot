@@ -14,25 +14,39 @@ _global_script_classes=[ {
 "language": "GDScript",
 "path": "res://scripts/BoidController.gd"
 }, {
+"base": "Object",
+"class": "Circle2",
+"language": "GDScript",
+"path": "res://scripts/Circle2.gd"
+}, {
 "base": "Node2D",
 "class": "Flock",
 "language": "GDScript",
 "path": "res://scripts/FlockController.gd"
+}, {
+"base": "Object",
+"class": "QuadTree",
+"language": "GDScript",
+"path": "res://scripts/QuadTree.gd"
+}, {
+"base": "Object",
+"class": "QuadTreeElement",
+"language": "GDScript",
+"path": "res://scripts/QuadTreeElement.gd"
 } ]
 _global_script_class_icons={
 "Boid": "",
-"Flock": ""
+"Circle2": "",
+"Flock": "",
+"QuadTree": "",
+"QuadTreeElement": ""
 }
 
 [application]
 
 config/name="BOIDS"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/QuadTreeTest.tscn"
 config/icon="res://icon.png"
-
-[debug]
-
-settings/stdout/print_fps=true
 
 [display]
 
@@ -104,6 +118,11 @@ draw_debug={
  ]
 }
 reset={
+"deadzone": 0.5,
+"events": [ Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"pressed":false,"scancode":32,"unicode":0,"echo":false,"script":null)
+ ]
+}
+add_point={
 "deadzone": 0.5,
 "events": [ Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"pressed":false,"scancode":32,"unicode":0,"echo":false,"script":null)
  ]
