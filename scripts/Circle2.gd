@@ -16,7 +16,9 @@ func has_point(pos : Vector2) -> bool:
 	return dist <= radiusSq
 	
 func intersects(other : Circle2) -> bool:
-	return has_point(other.center)
+	var distance = self.center.distance_squared_to(other.center)
+	var radSqSum = pow(self.radius + other.radius, 2)
+	return distance <= radSqSum
 
 func intersectsRect(rect : Rect2) -> bool:
 	var tempX : float = self.center.x

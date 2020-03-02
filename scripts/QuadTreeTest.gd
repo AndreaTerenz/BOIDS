@@ -10,18 +10,23 @@ func _ready() -> void:
 	randomize()
 	qt = QuadTree.new(scrn)
 	
-	for i in range(0, 180):
+	for i in range(0, 20):
 		insertRandomPoint()
 
 func _input(event: InputEvent) -> void:
 	if Input.is_action_just_pressed("add_point"):
 		insertRandomPoint()
+		
+	if Input.is_action_just_pressed("clear"):
+		self.qt.clear()
+		self.allPoints.clear()
+		update()
 	
 	if event is InputEventMouseMotion:
 		testCircle.center = get_global_mouse_position()
 		update()
 	
-	if Input.is_mouse_button_pressed(1):
+	if Input.is_action_pressed("add_point_at_mouse"):
 		insertPointAt(get_global_mouse_position())
 
 func _draw() -> void:
@@ -46,6 +51,6 @@ func insertRandomPoint() -> void:
 
 func insertPointAt(pos : Vector2) -> void:
 	var elem : QuadTreeElement = QuadTreeElement.new(pos)
-	if qt.insert(elem):
+	if qt.insert(pos):
 		self.allPoints.append(pos)
 		update()

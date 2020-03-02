@@ -39,11 +39,11 @@ var mode
 
 onready var screen_size = get_viewport_rect().size + Vector2(10, 10)
 
-func _init(pos : Vector2, i : int, t : Node, prnt, m, scn : PackedScene) -> void:
+func _init(pos : Vector2, i : int, trgt : Node, prnt, m, scn : PackedScene) -> void:
 	self.position = pos
 	self.id = i
 	self.parent = prnt
-	self.target = t
+	self.target = trgt
 	self.mode = m
 	initNoise()
 	
@@ -67,8 +67,9 @@ func _draw() -> void:
 	
 	if (SHOW_DEBUG):
 		if (othersCount > 1):
-			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.white, 3)
-			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.white, 3)
+			draw_empty_circle(Vector2.ZERO, COHESION_RADIUS, Color.blue, 3)
+			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.red, 3)
+			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.green, 3)
 		
 		if (self.mode != BOID_MODE.DRIFT):
 			var col : Color
@@ -127,7 +128,7 @@ func getTotalAcceleration() -> Vector2:
 	return output.clamped(MAX_FORCE)
 
 func getCohesion() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self.id, COHESION_RADIUS)
+	var others = self.parent.getOtherBoidsInRange(self, COHESION_RADIUS*2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
@@ -142,7 +143,7 @@ func getCohesion() -> Vector2:
 	return output
 
 func getAlignment() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self.id, ALIGNMENT_RADIUS)
+	var others = self.parent.getOtherBoidsInRange(self, ALIGNMENT_RADIUS*2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
@@ -158,7 +159,7 @@ func getAlignment() -> Vector2:
 	return output
 
 func getSeparation() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self.id, SEPARATION_RADIUS)
+	var others = self.parent.getOtherBoidsInRange(self, SEPARATION_RADIUS*2)
 	var output : Vector2 = Vector2.ZERO
 	var count : int = 0
 
@@ -197,7 +198,7 @@ func getDesireToPosition(pos : Vector2) -> Vector2:
 	return desire
 
 func getTargetPos() -> void:
-	var actualPos : Vector2 = getActualTargetPos()
+	var actualPos : Vector2 = self.target.position
 	self.targetInSight = isPositionInSight(actualPos)
 	
 	if (canWander()):
@@ -210,11 +211,8 @@ func getWanderTargetPos() -> Vector2:
 	self.wanderNoisePos += 2
 	return Vector2(WANDER_RADIUS, 0).rotated(self.wanderAngle)
 
-func getActualTargetPos() -> Vector2:
-	return get_global_mouse_position() if (self.target == null) else self.target.position
-
 func getActualTargetDistance() -> float:
-	return getActualTargetPos().distance_squared_to(self.position)
+	return self.target.position.distance_squared_to(self.position)
 
 func getTargetDistance() -> float:
 	return self.position.distance_squared_to(self.lastTargetPos)
@@ -222,7 +220,7 @@ func getTargetDistance() -> float:
 func isPositionInSight(pos : Vector2) -> bool:
 	var distance = pos.distance_squared_to(self.position)
 	var distOK : bool = (distance <= pow(FOV_RADIUS,2))
-	var angle : float = to_local(pos).angle()
+	var angle : float = PI - pos.angle_to_point(self.position)
 	var angleOK : bool = (angle >= -self.actualFOVAngle) and (angle <= self.actualFOVAngle)
 	
 	return distOK and angleOK
