@@ -8,32 +8,32 @@ export(PackedScene) var boidScene = preload("res://scenes/Boid.tscn")
 export(NodePath) var target : NodePath
 export(BOID_MODE) var mode = BOID_MODE.DRIFT
 export(int, 1, 250, 1) var count = 5
+export(bool) var showDebug = false
 
-var qtree : QuadTree
+var qtree : QuadTree = null
 
 onready var bounds : Rect2 = get_viewport_rect()
 onready var boundsSize : Vector2 = get_viewport_rect().size
 
 func _ready() -> void:
-	self.qtree = QuadTree.new(self.bounds)
 	reset()
 
 func _process(_delta: float) -> void:
+	self.qtree = QuadTree.new(self.bounds)
 	var boids = getBoids()
 
 	for stage in [1,2,3]:
 		for boid in boids:
 			match stage:
 				1 : #First, add each boid to the quadtree
-					var elem = QuadTreeElement.new(boid.position, str(boid.id), boid)
-					self.qtree.insert(elem)
+					self.qtree.insert(QuadTreeElement.new(boid.position, str(boid.id), boid))
 				2 : #Second, calculate each boid's velocity
 					boid.setVelocity()
 				3 : #Third, move each boid
 					boid.move()
-					boid.update()
 		
 	self.qtree.clear()
+	self.qtree.free()
 
 func getBoidsCount() -> int:
 	return self.get_children().size()
@@ -55,14 +55,14 @@ func getBoids() -> Array:
 func _input(_event: InputEvent) -> void:
 	if Input.is_action_just_pressed("reset"):
 		reset()
+	if Input.is_action_just_pressed("draw_debug"):
+		self.showDebug = not(self.showDebug)
 
 func reset() -> void:
 	for b in getBoids():
 		remove_child(b)
 		b.queue_free()
-	self.qtree.clear()
 	for i in range(0, self.count):
 		var startPos : Vector2 = Vector2(rand_range(0, self.boundsSize.x), rand_range(0, self.boundsSize.y))
 		var b : Boid = Boid.new(startPos, i, get_node(target), self, mode, boidScene)
-		if self.qtree.insert(QuadTreeElement.new(b.position, str(b.id), b)):
-			self.add_child(b)
+		self.add_child(b)

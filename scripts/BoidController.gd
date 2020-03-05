@@ -20,7 +20,6 @@ export(float, 0.8, 90.0, 0.1) var COHESION_RADIUS = 60
 export(float, 1, 40, 0.1) var WANDER_RADIUS = 12
 export(float, 5, 200, 0.5) var WANDER_DISTANCE = 40
 
-export(bool) var SHOW_DEBUG = true
 export(bool) var KEEP_SEARCHING = true
 
 var wanderAngleNoise : OpenSimplexNoise
@@ -30,6 +29,7 @@ var targetInSight : bool = false
 var wanderNoisePos : float = 0.0
 var actualFOVAngle : float = 0
 var wanderAngle : float = 0
+var debug : bool = true
 var id : int = -1
 var parent = null
 
@@ -39,12 +39,13 @@ var mode
 
 onready var screen_size = get_viewport_rect().size + Vector2(10, 10)
 
-func _init(pos : Vector2, i : int, trgt : Node, prnt, m, scn : PackedScene) -> void:
+func _init(pos : Vector2, i : int, trgt : Node, prnt, m, scn : PackedScene, dbg : bool = true) -> void:
 	self.position = pos
 	self.id = i
 	self.parent = prnt
 	self.target = trgt
 	self.mode = m
+	self.debug = dbg
 	initNoise()
 	
 	if (self.mode == BOID_MODE.DRIFT):
@@ -65,46 +66,38 @@ func initNoise() -> void:
 func _draw() -> void:
 	var othersCount = self.parent.getBoidsCount()
 	
-	if (SHOW_DEBUG):
-		if (othersCount > 1):
-			draw_empty_circle(Vector2.ZERO, COHESION_RADIUS, Color.blue, 3)
-			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.red, 3)
-			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.green, 3)
-		
-		if (self.mode != BOID_MODE.DRIFT):
+	if (self.parent.showDebug):
+		if not(self.mode in [BOID_MODE.WANDER, BOID_MODE.DRIFT]):
+			var p = Vector2(FOV_RADIUS, 0)
 			var col : Color
+			var wand : bool = canWander()
+			var arr : bool = hasArrived()
 			
-			if (canWander()):
-				col = Color.white
-			elif not(hasArrived()):
-				col = Color.yellow
-			else:
-				col = Color.green
+			match (true):
+				wand : col = Color.white
+				arr : col = Color.green
+				_ : col = Color.yellow
 			
 			if not(hasArrived()):
 				draw_line(Vector2.ZERO, Vector2(WANDER_DISTANCE, 0), col, 3)
-				
-			if (self.mode != BOID_MODE.WANDER):
-				var p = Vector2(FOV_RADIUS, 0)
-				draw_line(Vector2.ZERO, p.rotated(self.actualFOVAngle), col, 3)
-				draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
-				draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
-
-	var rectSide = 7
-	draw_rect(Rect2(-rectSide, -rectSide, rectSide*2, rectSide*2), Color.aquamarine)
+			
+			draw_line(Vector2.ZERO, p.rotated(self.actualFOVAngle), col, 3)
+			draw_line(Vector2.ZERO, p.rotated(-self.actualFOVAngle), col, 3)
+			draw_arc(Vector2.ZERO, FOV_RADIUS, -self.actualFOVAngle, self.actualFOVAngle, 30, col, 3)
+		elif (othersCount > 1):
+			draw_empty_circle(Vector2.ZERO, COHESION_RADIUS, Color.blue, 3)
+			draw_empty_circle(Vector2.ZERO, SEPARATION_RADIUS, Color.red, 3)
+			draw_empty_circle(Vector2.ZERO, ALIGNMENT_RADIUS, Color.green, 3)
 
 func draw_empty_circle(center : Vector2, radius : float, color : Color, thickness : float = 1.0) -> void:
 	draw_arc(center, radius, 0, 2*PI, 80, color, thickness)
-
-func _input(_event: InputEvent) -> void:
-	if Input.is_action_just_pressed("draw_debug"):
-		SHOW_DEBUG = not(SHOW_DEBUG)
 
 func move() -> void:
 	if not(hasArrived()):
 		self.position += self.velocity
 		wrapAroundScreen()
 		orient()
+	update()
 
 func setVelocity() -> void:
 	if not(hasArrived()):
@@ -120,8 +113,9 @@ func orient() -> void:
 
 func getTotalAcceleration() -> Vector2:
 	var output = getDesire()
+	output += getSeparation()
 	if not(self.mode in [BOID_MODE.SEEK, BOID_MODE.FLEE]):
-		output += getSeparation()
+		
 		output += getAlignment()
 		output += getCohesion()
 		
@@ -198,13 +192,16 @@ func getDesireToPosition(pos : Vector2) -> Vector2:
 	return desire
 
 func getTargetPos() -> void:
-	var actualPos : Vector2 = self.target.position
-	self.targetInSight = isPositionInSight(actualPos)
-	
-	if (canWander()):
+	if not(self.is_inside_tree()):
 		self.lastTargetPos = self.position + getWanderTargetPos()
-	elif self.targetInSight:
-		self.lastTargetPos = actualPos
+	else:
+		var actualPos : Vector2 = self.target.position
+		self.targetInSight = isPositionInSight(actualPos)
+		
+		if (canWander()):
+			self.lastTargetPos = self.position + getWanderTargetPos()
+		elif self.targetInSight:
+			self.lastTargetPos = actualPos
 
 func getWanderTargetPos() -> Vector2:
 	self.wanderAngle += self.wanderAngleNoise.get_noise_1d(self.wanderNoisePos)*PI/6
@@ -219,11 +216,8 @@ func getTargetDistance() -> float:
 
 func isPositionInSight(pos : Vector2) -> bool:
 	var distance = pos.distance_squared_to(self.position)
-	var distOK : bool = (distance <= pow(FOV_RADIUS,2))
-	var angle : float = PI - pos.angle_to_point(self.position)
-	var angleOK : bool = (angle >= -self.actualFOVAngle) and (angle <= self.actualFOVAngle)
-	
-	return distOK and angleOK
+	var angle : float = to_local(pos).angle()
+	return (distance <= pow(FOV_RADIUS,2)) and (angle >= -self.actualFOVAngle) and (angle <= self.actualFOVAngle)
 
 func wrapAroundScreen() -> void:
 	var width = screen_size.x
