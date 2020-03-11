@@ -7,7 +7,7 @@ enum BOID_MODE { SEEK, FLEE, WANDER, DRIFT }
 export(PackedScene) var boidScene = preload("res://scenes/Boid.tscn")
 export(NodePath) var target : NodePath
 export(BOID_MODE) var mode = BOID_MODE.DRIFT
-export(int, 1, 250, 1) var count = 5
+export(int, 1, 310, 1) var count = 30
 export(bool) var showDebug = false
 
 var qtree : QuadTree = null

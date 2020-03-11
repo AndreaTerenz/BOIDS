@@ -113,61 +113,49 @@ func orient() -> void:
 
 func getTotalAcceleration() -> Vector2:
 	var output = getDesire()
-	output += getSeparation()
-	if not(self.mode in [BOID_MODE.SEEK, BOID_MODE.FLEE]):
-		
-		output += getAlignment()
-		output += getCohesion()
+	output += getFlockForces()
 		
 	return output.clamped(MAX_FORCE)
 
-func getCohesion() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self, COHESION_RADIUS*2)
-	var output : Vector2 = Vector2.ZERO
-	var count : int = 0
+func getFlockForces() -> Vector2:
+	var totalOutput : Vector2 = Vector2.ZERO
+	var maxRadius : int = [SEPARATION_RADIUS, COHESION_RADIUS, ALIGNMENT_RADIUS].max()
+	var others : Array = self.parent.getOtherBoidsInRange(self, maxRadius*2)
+	
+	if (others.size() > 0):
+		var cohIndx = 0
+		var sepIndx = 1
+		var alIndx = 2
+		var counts : Array = [0, 0, 0]
+		var outputs : Array = [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]
+		
+		for o in others:
+			var dist = o.position.distance_squared_to(self.position)
+			if (dist <= pow(COHESION_RADIUS*2,2)):
+				outputs[cohIndx] += o.position
+				counts[cohIndx] += 1
+			if (dist <= pow(ALIGNMENT_RADIUS*2,2)):
+				outputs[alIndx] += o.velocity
+				counts[alIndx] += 1
+			if (dist <= pow(SEPARATION_RADIUS*2, 2)):
+				var diff : Vector2 = (self.position - o.position).normalized()
+				outputs[sepIndx] += diff
+				counts[sepIndx] += 1
+		
+		if (counts[sepIndx] > 0):
+			outputs[sepIndx] /= counts[sepIndx]
+			outputs[sepIndx] = (outputs[sepIndx].normalized() * MAX_SPEED)
+			totalOutput += outputs[sepIndx] - self.velocity
+		if not(self.mode in [BOID_MODE.SEEK, BOID_MODE.FLEE]):
+			if (counts[cohIndx] > 0):
+				outputs[cohIndx] /= counts[cohIndx]
+				totalOutput += getDesireToPosition(outputs[cohIndx])
+			if (counts[alIndx] > 0):
+				outputs[alIndx] /= counts[alIndx]
+				outputs[alIndx] = (outputs[alIndx].normalized() * MAX_SPEED)
+				totalOutput += outputs[alIndx] - self.velocity
 
-	for o in others:
-		output += o.position
-		count += 1
-	
-	if (count > 0):
-		output /= count
-		output  = getDesireToPosition(output)
-	
-	return output
-
-func getAlignment() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self, ALIGNMENT_RADIUS*2)
-	var output : Vector2 = Vector2.ZERO
-	var count : int = 0
-
-	for o in others:
-		output += o.velocity
-		count += 1
-	
-	if (count > 0):
-		output /= count
-		output  = (output.normalized() * MAX_SPEED)
-		output -= self.velocity
-	
-	return output
-
-func getSeparation() -> Vector2:
-	var others = self.parent.getOtherBoidsInRange(self, SEPARATION_RADIUS*2)
-	var output : Vector2 = Vector2.ZERO
-	var count : int = 0
-
-	for o in others:
-		var diff : Vector2 = (self.position - o.position).normalized()
-		output += diff
-		count += 1
-	
-	if (count > 0):
-		output /= count
-		output  = (output.normalized() * MAX_SPEED)
-		output -= self.velocity
-	
-	return output
+	return totalOutput
 
 func getDesire() -> Vector2:
 	return getDesireToPosition(self.lastTargetPos)
